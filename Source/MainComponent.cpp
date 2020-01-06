@@ -1,10 +1,9 @@
 #include "MainComponent.h"
 
-MainComponent::MainComponent()
+MainComponent::MainComponent()	: port(9000)
+								, activationTime(0)
 {
     setSize (600, 400);
-	connect(9000);
-
 	startTimerHz(60);
 
 	loggingButton.setButtonText("Activate");
@@ -27,10 +26,6 @@ MainComponent::~MainComponent()
 void MainComponent::paint (Graphics& g)
 {
     g.fillAll (getLookAndFeel().findColour (ResizableWindow::backgroundColourId));
-
-    //g.setFont (Font (16.0f));
-    //g.setColour (Colours::white);
-    //g.drawText ("Atomic OSC Logger", getLocalBounds(), Justification::centred, true);
 }
 
 void MainComponent::resized()
@@ -46,8 +41,9 @@ void MainComponent::buttonClicked(Button* buttonThatWasClicked)
 	{
 		if (!loggingButton.getToggleState())
 		{
-			activationTime = Time::getMillisecondCounterHiRes();
+			connect(port);
 			addListener(this);
+			activationTime = Time::getMillisecondCounterHiRes();
 			saveLogButton.setEnabled(false);
 			loggingButton.setToggleState(true, dontSendNotification);
 			loggingButton.setButtonText("Deactivate");
@@ -55,6 +51,7 @@ void MainComponent::buttonClicked(Button* buttonThatWasClicked)
 		else
 		{
 			removeListener(this);
+			disconnect();
 			saveLogButton.setEnabled(true);
 			loggingButton.setToggleState(false, dontSendNotification);
 			loggingButton.setButtonText("Activate");
@@ -85,24 +82,21 @@ void MainComponent::oscBundleReceived(const OSCBundle& bundle)
 
 void MainComponent::processOscMessage(const OSCMessage& message)
 {
-	if (message.size() == 3 && message.getAddressPattern() == "/rendering/htrpy")
+	String arguments;
+	for (int i = 0; i < message.size(); ++i)
 	{
-		float roll = message[0].getFloat32();
-		float pitch = message[1].getFloat32();
-		float yaw = message[2].getFloat32();
-
-		double time = Time::getMillisecondCounterHiRes() - activationTime;
-
-		String messageText = String(time) + "," + String(roll) + "," + String(pitch) + "," + String(yaw) + "\n";
-		oscMessageList.add(messageText);
+		arguments += "," + String(message[i].getFloat32());
 	}
+
+	double time = Time::getMillisecondCounterHiRes() - activationTime;
+	String messageText =	String(time) + "," + message.getAddressPattern().toString() + arguments + "\n";
+	oscMessageList.add(messageText);
 }
 
 void MainComponent::saveLog()
 {
 	File logFile;
 
-#if JUCE_MODAL_LOOPS_PERMITTED
 	FileChooser fc("Select or create results export file...",
 		File::getCurrentWorkingDirectory(),
 		"*.csv",
@@ -111,22 +105,18 @@ void MainComponent::saveLog()
 	if (fc.browseForFileToSave(true))
 	{
 		logFile = fc.getResult();
-	}
-#endif
 
-	if (logFile.exists())
-	{
-		logFile.replaceWithText("");
-	}
-	else
-	{
-		logFile.create();
-	}
 
-	FileOutputStream fos(logFile);
-	fos << "time,roll,pitch,yaw\n";
-	for (int i = 0; i < oscMessageList.size(); ++i)
-	{
-		fos << oscMessageList[i];
+		if (!logFile.exists())
+		{
+			logFile.create();
+			logFile.replaceWithText("time,address,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,arg10,arg11,arg12\n");
+		}
+
+		FileOutputStream fos(logFile);
+		for (int i = 0; i < oscMessageList.size(); ++i)
+		{
+			fos << oscMessageList[i];
+		}
 	}
 }

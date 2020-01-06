@@ -25,6 +25,7 @@ private:
 	void processOscMessage(const OSCMessage& message);
 	void saveLog();
 
+	int port;
 	double activationTime;
 
 	TextButton loggingButton, saveLogButton;
